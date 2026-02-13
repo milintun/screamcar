@@ -64,7 +64,7 @@ class Car {
     }
 
     show() {
-        fill('green');
+        fill('#00DE43');
         noStroke();
         if (this.dead) {
             circle(this.deadX, this.deadY, 15);
