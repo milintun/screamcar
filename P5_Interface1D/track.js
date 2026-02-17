@@ -90,6 +90,8 @@ class RandomBezier {
 class Track {
     constructor() {
         this.beziers = [];
+        this.bananas = [];
+        this.generateBananas();
         this.generateTrack();
     }
 
@@ -122,6 +124,13 @@ class Track {
       return samplePoints
     }
 
+    generateBananas(numBananas=3) {
+      for (let i=0; i < numBananas; i++) {
+        const banana = new Banana()
+        this.bananas.push(banana)
+      }
+    }
+
     generateTrack() {
         const samplePoints = this.samplePointsAroundCircle(250, 6);
         for (const [index, [x, y]] of samplePoints.entries()) {
@@ -140,29 +149,20 @@ class Track {
             firstBezier.cpy1 = firstBezier.y1 + (firstBezier.y1 - lastBezier.cpy2);
             firstBezier.polyRep = firstBezier.getPolyRep();
         }
-
-        this.computeCurvatureRange();
     }
 
-    computeCurvatureRange(samples = 200) {
-        this.minCurvature = Infinity;
-        this.maxCurvature = -Infinity;
-        for (let i = 0; i < samples; i++) {
-            const t = i / samples;
-            const { curvature } = this.getPointAt(t);
-            if (curvature < this.minCurvature) this.minCurvature = curvature;
-            if (curvature > this.maxCurvature) this.maxCurvature = curvature;
-        }
-    }
 
     show() {
+      // draw each bezier 
       this.beziers.forEach(bezier => bezier.show());
 
-      // fill('black');
-      // noStroke();
-      // textSize(12);
-      // text('min κ: ' + this.minCurvature.toFixed(4), 10, 20);
-      // text('max κ: ' + this.maxCurvature.toFixed(4), 10, 36);
+      // draw each banana
+      for (const banana of this.bananas) {
+        const pos = this.getPointAt(banana.t)
+        noStroke()
+        fill('#F7E29C')
+        circle(pos.x, pos.y, 20)
+      }
     }
 
     getPointAt(t) {

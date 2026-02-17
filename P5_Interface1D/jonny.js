@@ -18,9 +18,9 @@ let brake = 0.55;
 let friction = 0.15;
 
 // Banana behavior
-const BANANA_KILL_SPEED = 0.12;   // only die if speed >= this
-const BANANA_SLOW_FACTOR = 0.25;  // if slow, reduce speed to this fraction
-const BANANA_RESPAWN_MS = 1500;
+// const BANANA_KILL_SPEED = 0.12;   // only die if speed >= this
+// const BANANA_SLOW_FACTOR = 0.25;  // if slow, reduce speed to this fraction
+// const BANANA_RESPAWN_MS = 1500;
 
 let trackPts = [];      // {x,y,heading}
 let bananas = [];       // {x,y,active,respawnAtMs}
