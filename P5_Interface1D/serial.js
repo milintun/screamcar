@@ -5,7 +5,7 @@ let serial = {
   port: null,
   reader: null,
   connected: false,
-  rawValue: 0,       // raw integer value from Arduino (e.g. 0-1023)
+  values: {},        // keyed by car id, e.g. { 1: 512, 2: 300 }
   buffer: "",        // partial line buffer
 
   // Try to reconnect to a previously granted port (no popup needed)
@@ -56,10 +56,14 @@ let serial = {
           this.buffer = lines.pop();
           for (let line of lines) {
             line = line.trim();
-            if (line.length > 0) {
-              let num = parseInt(line);
-              if (!isNaN(num)) {
-                this.rawValue = num;
+            if (line.length === 0) continue;
+            // Expected format: "id value" e.g. "1 512" or "2 300"
+            let parts = line.split(" ");
+            if (parts.length === 2) {
+              let id = parseInt(parts[0]);
+              let val = parseInt(parts[1]);
+              if (!isNaN(id) && !isNaN(val)) {
+                this.values[id] = val;
               }
             }
           }

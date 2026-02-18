@@ -1,9 +1,12 @@
 
 class Car {
 
-    constructor(track, maxGrip) {
+    constructor(track, maxGrip, id, inputMode, carColor) {
         this.track = track;
         this.maxGrip = maxGrip;
+        this.id = id;               // 1 or 2 — matches serial prefix
+        this.inputMode = inputMode;  // "keyboard", "potentiometer", "button", "microphone"
+        this.carColor = carColor;    // [r, g, b]
         this.t = 0;
         this.speed = 0;
         this.dead = false;
@@ -22,28 +25,26 @@ class Car {
             return;
         }
 
-        // INPUT MODE — change INPUT_MODE in main.js to switch
-        // "keyboard"    : W/S keys (original)
-        // "potentiometer": analog value (0-1023) maps directly to speed
-        // "button"      : serial value acts like W/S (0 = brake, 1 = accel)
-        // "microphone"  : loudness (0-1023) maps to acceleration
+        // Read this car's serial value by id
+        let val = serial.values[this.id] || 0;
 
-        if (INPUT_MODE === "keyboard") {
-            if (key == 'w') {
+        if (this.inputMode === "keyboard") {
+            // Car 1: W/S keys, Car 2: Up/Down arrows
+            let accelKey = this.id === 1 ? keyIsDown(87) : keyIsDown(UP_ARROW);
+            let brakeKey = this.id === 1 ? keyIsDown(83) : keyIsDown(DOWN_ARROW);
+            if (accelKey) {
                 this.speed += 0.00005;
-            } else if (key === 's') {
+            } else if (brakeKey) {
                 if (this.speed > 0) {
                     this.speed -= 0.00005;
                 }
             }
 
-        } else if (INPUT_MODE === "potentiometer") {
-            // Map 0-1023 directly to speed range
-            this.speed = map(serial.rawValue, 0, 700, 0, 0.003);
+        } else if (this.inputMode === "potentiometer") {
+            this.speed = map(val, 0, 700, 0, 0.003);
 
-        } else if (INPUT_MODE === "button") {
-            // 1 = accelerate, 0 = brake
-            if (serial.rawValue === 1) {
+        } else if (this.inputMode === "button") {
+            if (val === 1) {
                 this.speed += 0.0001;
             } else {
                 if (this.speed > 0) {
@@ -51,13 +52,10 @@ class Car {
                 }
             }
 
-        } else if (INPUT_MODE === "microphone") {
-            // Louder = faster acceleration
-            let loudness = serial.rawValue; // 0-1023
-            if (loudness > 100) { // noise threshold
-                this.speed += map(loudness, 100, 1023, 0.00001, 0.0002);
+        } else if (this.inputMode === "microphone") {
+            if (val > 100) {
+                this.speed += map(val, 100, 1023, 0.00001, 0.0002);
             } else {
-                // Slow down when quiet
                 if (this.speed > 0) {
                     this.speed -= 0.00003;
                 }
@@ -104,7 +102,7 @@ class Car {
         if (this.dead) {
             circle(this.deadX, this.deadY, 15);
         } else {
-        fill(0, 184, 46);
+        fill(this.carColor[0], this.carColor[1], this.carColor[2]);
         const pos = this.track.getPointAt(this.t);
         circle(pos.x, pos.y, 15);
         // trail length: 50% shorter than before (cap at 5 instead of 10)
@@ -122,7 +120,7 @@ class Car {
             }
             const clonePos = this.track.getPointAt(remappedCloneT);
             const alpha = map(i, 0, trailLen, 100, 40);
-            fill(0, 184, 46, alpha);
+            fill(this.carColor[0], this.carColor[1], this.carColor[2], alpha);
             circle(clonePos.x, clonePos.y, 15);
         }
         }
