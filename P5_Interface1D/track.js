@@ -91,7 +91,6 @@ class Track {
     constructor() {
         this.beziers = [];
         this.bananas = [];
-        this.finishT = random(0, 1)
         this.generateBananas();
         this.generateTrack();
     }
@@ -162,13 +161,13 @@ class Track {
         const pos = this.getPointAt(banana.t);
         noStroke();
         fill('#F7E29C');
-        circle(pos.x, pos.y, 20);
+        circle(pos.x, pos.y, 10);
       }
 
       // draw finish line
-      const linePos = this.getPointAt(this.finishT);
-      
-
+      const linePos = this.getPointAt(0);
+      fill('purple');
+      circle(linePos.x, linePos.y, 30);
     }
 
     getPointAt(t) {

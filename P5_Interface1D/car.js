@@ -7,8 +7,10 @@ class Car {
         this.id = id;               // 1 or 2 — matches serial prefix
         this.inputMode = inputMode;  // "keyboard", "potentiometer", "button", "microphone"
         this.carColor = carColor;    // [r, g, b]
-        this.t = 0;
+        this.t = 0.01;
+        this.prevT = 0.01;
         this.speed = 0;
+        this.lapped = false;
         this.dead = false;
         this.deadX = 0;
         this.deadY = 0;
@@ -62,10 +64,14 @@ class Car {
             }
         }
 
+        this.prevT = this.t;
         this.t = (this.t + this.speed) % 1;
         if (this.t < 0) this.t += 1;
 
-
+        // Detect lap: t wrapped from high back to low
+        if (this.prevT > 0.9 && this.t < 0.1 && this.speed > 0) {
+            this.lapped = true;
+        }
 
         // INTERACTIONS
         const pos = this.track.getPointAt(this.t);
@@ -99,12 +105,12 @@ class Car {
     }
 
     show() {
-        if (this.dead) {
-            circle(this.deadX, this.deadY, 15);
-        } else {
         fill(this.carColor[0], this.carColor[1], this.carColor[2]);
+        if (this.dead) {
+            circle(this.deadX, this.deadY, 20);
+        } else {
         const pos = this.track.getPointAt(this.t);
-        circle(pos.x, pos.y, 15);
+        circle(pos.x, pos.y, 20);
         // trail length: 50% shorter than before (cap at 5 instead of 10)
         let trailLen = floor(map(this.speed, 0, 0.002, 0, 5));
 
@@ -121,7 +127,7 @@ class Car {
             const clonePos = this.track.getPointAt(remappedCloneT);
             const alpha = map(i, 0, trailLen, 100, 40);
             fill(this.carColor[0], this.carColor[1], this.carColor[2], alpha);
-            circle(clonePos.x, clonePos.y, 15);
+            circle(clonePos.x, clonePos.y, 20);
         }
         }
     }
