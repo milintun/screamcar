@@ -75,3 +75,44 @@ let serial = {
     }
   }
 };
+
+// Computer microphone via Web Audio API
+let mic = {
+  level: 0,          // 0-1023, updated every animation frame
+  active: false,
+  analyser: null,
+  dataArray: null,
+
+  async start() {
+    try {
+      let stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let ctx = new AudioContext();
+      let source = ctx.createMediaStreamSource(stream);
+      this.analyser = ctx.createAnalyser();
+      this.analyser.fftSize = 256;
+      source.connect(this.analyser);
+      this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+      this.active = true;
+      console.log("Microphone started!");
+      this._updateLoop();
+    } catch (err) {
+      console.error("Microphone access denied:", err);
+    }
+  },
+
+  _updateLoop() {
+    if (!this.active) return;
+    this.analyser.getByteTimeDomainData(this.dataArray);
+    // Calculate RMS loudness
+    let sum = 0;
+    for (let i = 0; i < this.dataArray.length; i++) {
+      let v = (this.dataArray[i] - 128) / 128;
+      sum += v * v;
+    }
+    let rms = Math.sqrt(sum / this.dataArray.length);
+    // Map 0-1 RMS to 0-1023
+    this.level = Math.floor(rms * 1023 * 4); // *4 to boost sensitivity
+    if (this.level > 1023) this.level = 1023;
+    requestAnimationFrame(() => this._updateLoop());
+  }
+};

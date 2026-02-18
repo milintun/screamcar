@@ -11,20 +11,23 @@ let displaySize = 40;   // how many pixels are visible in the game
 let pixelSize = 20;     // how big each 'pixel' looks on screen
 
 let track;
-let car1;
-let car2;
+let cars = [];
 
 let controller;   // This is where the state machine and game logic lives
 
 const MAX_GRIP = 20;
 
 // ========== CAR CONFIG ==========
-// Input modes: "keyboard", "potentiometer", "button", "microphone"
-// Arduino sends: "1 value\n" for car 1, "2 value\n" for car 2
-const CAR1_MODE = "keyboard";
-const CAR2_MODE = "keyboard";
-const CAR1_COLOR = [0, 184, 46];    // green
-const CAR2_COLOR = [230, 50, 50];   // red
+// Add/remove entries to change number of cars
+// Input modes: "keyboard", "potentiometer", "button", "microphone", "ultrasonic"
+// Arduino sends: "id value\n" where id matches the car's id
+const CAR_CONFIG = [
+  { id: 1, mode: "potentiometer", color: [0, 184, 46]  },   // green
+  { id: 2, mode: "potentiometer", color: [66, 135, 245] },  // blue
+
+  // { id: 1, mode: "ultrasonic", color: [0, 184, 46]  },   // green
+  // { id: 2, mode: "microphone", color: [66, 135, 245] },  // blue
+];
 // ================================
 
 let bgColor;
@@ -39,14 +42,18 @@ function setup() {
 
   // randomize new track once
   track = new Track();
-  car1 = new Car(track, MAX_GRIP, 1, CAR1_MODE, CAR1_COLOR);
-  car2 = new Car(track, MAX_GRIP, 2, CAR2_MODE, CAR2_COLOR);
+  cars = CAR_CONFIG.map(c => new Car(track, MAX_GRIP, c.id, c.mode, c.color));
   track.show();
 
   bgColor = 'white';
 
+  // Start computer microphone if any car uses it
+  if (CAR_CONFIG.some(c => c.mode === "microphone")) {
+    mic.start();
+  }
+
   // Serial: try auto-reconnect, show button as fallback
-  if (CAR1_MODE !== "keyboard" || CAR2_MODE !== "keyboard") {
+  if (CAR_CONFIG.some(c => c.mode !== "keyboard" && c.mode !== "microphone")) {
     serial.autoConnect();
     let btn = createButton('Connect Arduino');
     btn.position(10, displaySize * pixelSize + 10);
@@ -58,28 +65,23 @@ function draw() {
   background(bgColor);
   track.show();
 
-  if (!paused) {
-    car1.update();
-    car2.update();
+  for (let car of cars) {
+    if (!paused) car.update();
+    car.show();
   }
-  car1.show();
-  car2.show();
 
-  // Check for win (car completes a lap — t wraps past 0.95 back below 0.05)
+  // Check for win (car completes a lap)
   if (!paused && resetTimer < 0) {
-    if (car1.lapped) {
-      bgColor = `rgb(${CAR1_COLOR[0]}, ${CAR1_COLOR[1]}, ${CAR1_COLOR[2]})`;
-      paused = true;
-      resetTimer = RESET_DELAY;
-    } else if (car2.lapped) {
-      bgColor = `rgb(${CAR2_COLOR[0]}, ${CAR2_COLOR[1]}, ${CAR2_COLOR[2]})`;
+    let winner = cars.find(car => car.lapped);
+    if (winner) {
+      bgColor = `rgb(${winner.carColor[0]}, ${winner.carColor[1]}, ${winner.carColor[2]})`;
       paused = true;
       resetTimer = RESET_DELAY;
     }
   }
 
-  // Check for both dead
-  if (!paused && (car1.dead && car2.dead) && resetTimer < 0) {
+  // Check for all dead
+  if (!paused && cars.every(car => car.dead) && resetTimer < 0) {
     bgColor = 'red';
     resetTimer = RESET_DELAY;
   }
@@ -89,12 +91,9 @@ function draw() {
     resetTimer--;
   } else if (resetTimer === 0) {
     track = new Track();
-    car1 = new Car(track, MAX_GRIP, 1, CAR1_MODE, CAR1_COLOR);
-    car2 = new Car(track, MAX_GRIP, 2, CAR2_MODE, CAR2_COLOR);
+    cars = CAR_CONFIG.map(c => new Car(track, MAX_GRIP, c.id, c.mode, c.color));
     bgColor = 'white';
     paused = false;
     resetTimer = -1;
   }
 }
-
-

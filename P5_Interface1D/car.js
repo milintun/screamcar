@@ -55,13 +55,56 @@ class Car {
             }
 
         } else if (this.inputMode === "microphone") {
-            if (val > 100) {
-                this.speed += map(val, 100, 1023, 0.00001, 0.0002);
+            let loudness = mic.level; // 0-1023 from computer mic
+            console.log(loudness)
+
+            // SPEED
+            if (loudness > 300) {
+                this.speed = map(loudness, 300, 1023, 0.00001, 0.005);
+            } 
+            // ACCELERATION
+            if (loudness > 300) {
+                this.speed += map(loudness, 300, 1023, 0.00001, 0.0002);
             } else {
                 if (this.speed > 0) {
                     this.speed -= 0.00003;
-                }
+                } 
             }
+
+            // if (loudness > 100) {
+            //     this.speed += map(loudness, 300, 1023, 0.00001, 0.0002);
+            // } else {
+            //     if (this.speed > 0) {
+            //         this.speed -= 0.00003;
+            //     }
+            // }
+
+        } else if (this.inputMode === "ultrasonic") {
+            // SPEED (BRAKE)
+            // if (val > 30) {
+            //     this.speed = 0.005
+            // } else {
+            //     this.speed = map(val, 0, 30, 0, 0.003);
+            // }
+
+            // SPEED (GO)
+            if (val > 30) {
+                this.speed = 0.0005
+            } else {
+                this.speed = map(val, 30, 0, 0, 0.005);
+            }
+
+
+            //// ACCELERATION
+            // if (val > 30) {
+            //     // Far away = brake
+            //     this.speed -= 0.0001;
+            // } else {
+            //     // Close = accelerate (closer = faster)
+            //     this.speed += map(val, 30, 0, 0, 0.0001);
+            // }
+            // // Never go backwards
+            // if (this.speed < 0) this.speed = 0;
         }
 
         this.prevT = this.t;
