@@ -22,28 +22,46 @@ class Car {
             return;
         }
 
-        // INPUT MODE
-    
-        // // input2: hold to accelerate, release to stop
-        // if (keyIsDown(87)) {
-        //     this.speed += 0.0005;
-        // } else if (keyIsDown(83)) {
-        //     this.speed -= 0.0005;
-        // } else {
-        //     this.speed = 0;
-        // }
+        // INPUT MODE — change INPUT_MODE in main.js to switch
+        // "keyboard"    : W/S keys (original)
+        // "potentiometer": analog value (0-1023) maps directly to speed
+        // "button"      : serial value acts like W/S (0 = brake, 1 = accel)
+        // "microphone"  : loudness (0-1023) maps to acceleration
 
-        // input1: click to accelerate / decelerate
-        if (key == 'w') {
-          this.speed += 0.00005;
-        } else if (key === 's') {
-            // A: dont go backwards, just stop
-            if (this.speed > 0) {
-                this.speed -= 0.00005;
-            } 
-            // // B: can go backwards
-            // car.speed -= 0.00005;
+        if (INPUT_MODE === "keyboard") {
+            if (key == 'w') {
+                this.speed += 0.00005;
+            } else if (key === 's') {
+                if (this.speed > 0) {
+                    this.speed -= 0.00005;
+                }
+            }
 
+        } else if (INPUT_MODE === "potentiometer") {
+            // Map 0-1023 directly to speed range
+            this.speed = map(serial.rawValue, 0, 700, 0, 0.003);
+
+        } else if (INPUT_MODE === "button") {
+            // 1 = accelerate, 0 = brake
+            if (serial.rawValue === 1) {
+                this.speed += 0.0001;
+            } else {
+                if (this.speed > 0) {
+                    this.speed -= 0.00001;
+                }
+            }
+
+        } else if (INPUT_MODE === "microphone") {
+            // Louder = faster acceleration
+            let loudness = serial.rawValue; // 0-1023
+            if (loudness > 100) { // noise threshold
+                this.speed += map(loudness, 100, 1023, 0.00001, 0.0002);
+            } else {
+                // Slow down when quiet
+                if (this.speed > 0) {
+                    this.speed -= 0.00003;
+                }
+            }
         }
 
         this.t = (this.t + this.speed) % 1;

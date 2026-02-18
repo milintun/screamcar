@@ -17,6 +17,14 @@ let controller;   // This is where the state machine and game logic lives
 
 const MAX_GRIP = 20;
 
+// ========== CHANGE THIS TO SWITCH INPUT MODE ==========
+// "keyboard"      — W/S keys
+// "potentiometer" — analog 0-1023 maps to speed
+// "button"        — 1=accel, 0=brake
+// "microphone"    — loudness (0-1023) controls acceleration
+const INPUT_MODE = "potentiometer";
+// =======================================================
+
 let bgColor;
 
 
@@ -30,7 +38,14 @@ function setup() {
   track.show();
 
   bgColor = 'white';
-  
+
+  // Serial: try auto-reconnect, show button as fallback
+  if (INPUT_MODE !== "keyboard") {
+    serial.autoConnect();
+    let btn = createButton('Connect Arduino');
+    btn.position(10, displaySize * pixelSize + 10);
+    btn.mousePressed(() => serial.connect());
+  }
 }
 
 function draw() {
