@@ -6,7 +6,7 @@ class Audience {
     }
 
     _generate() {
-        const CENTERS   = [0, 0.45, 0.75]; // t positions along the track
+        const CENTERS   = [0, 0.35, 0.8]; // t positions along the track
         const T_RANGE   = 0.04;  // half-length of each grandstand along the track
         const T_STEPS   = 18;    // people per row per grandstand
         const ROWS      = 3;     // depth of grandstand (rows away from track)

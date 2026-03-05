@@ -10,8 +10,9 @@
 const CANVAS_SIZE = 800; // fixed physical canvas size in screen pixels
 let pixelSize = 10;      // how big each 'pixel' looks on screen (tune this)
 
-const RECTANGULAR  = true; // true = double width, same height
-const RED_WHITE_BORDER = true; // outer alternating red/white ring on track
+const RECTANGULAR      = true;      // true = double width, same height
+const RED_WHITE_BORDER = true;      // outer alternating red/white ring on track
+const GRASS_STYLE      = 'specks';  // 'specks' | 'stripes'
 
 let displayRows = CANVAS_SIZE / pixelSize;
 let displayCols = RECTANGULAR ? displayRows * 2 : displayRows;

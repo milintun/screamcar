@@ -230,12 +230,17 @@ class Track {
             setPixel(c, r, [70, 70, 70]);
         }
 
-        // bananas
-        for (const banana of this.bananas) {
-            const pos = this.getPointAt(banana.t);
-            const col = floor(pos.x / pixelSize);
-            const row = floor(pos.y / pixelSize);
-            setPixel(col, row, [247, 226, 156]);
+        // bananas — 2 pixels along tangent, blinking
+        if (floor(frameCount / 20) % 3 === 0) {
+            for (const banana of this.bananas) {
+                const pos  = this.getPointAt(banana.t);
+                const col  = floor(pos.x / pixelSize);
+                const row  = floor(pos.y / pixelSize);
+                const col2 = floor((pos.x + pos.tx * pixelSize) / pixelSize);
+                const row2 = floor((pos.y + pos.ty * pixelSize) / pixelSize);
+                setPixel(col,  row,  [247, 226, 156]); // pale yellow
+                setPixel(col2, row2, [200, 170,  60]); // darker yellow
+            }
         }
 
         // finish line — checkered stripe across track width
