@@ -174,6 +174,29 @@ class Track {
                 }
             }
         }
+
+        // pre-compute finish line: collect cells, deduplicate, then color by grid position
+        const lp = this.getPointAt(0);
+        const nx = -lp.ty;
+        const ny =  lp.tx;
+        const seen = new Set();
+        const cells = [];
+        for (let tStep = 0; tStep < 2; tStep++) {
+            for (let step = -RADIUS; step <= RADIUS; step++) {
+                const col = floor((lp.x + nx * step * pixelSize + lp.tx * tStep * pixelSize) / pixelSize);
+                const row = floor((lp.y + ny * step * pixelSize + lp.ty * tStep * pixelSize) / pixelSize);
+                const key = `${col},${row}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    cells.push({ col, row });
+                }
+            }
+        }
+        // color so no two adjacent cells share the same color
+        this.finishLineCells = cells.map(({ col, row }) => ({
+            col, row,
+            color: (col + row) % 2 === 0 ? [0, 0, 0] : [255, 255, 255],
+        }));
     }
 
     writeToBuffer() {
@@ -196,14 +219,10 @@ class Track {
             setPixel(col, row, [247, 226, 156]);
         }
 
-        // finish line (2x2 block so it's visible)
-        const linePos = this.getPointAt(0);
-        const col = floor(linePos.x / pixelSize);
-        const row = floor(linePos.y / pixelSize);
-        setPixel(col,     row,     [160, 32, 240]);
-        setPixel(col + 1, row,     [160, 32, 240]);
-        setPixel(col,     row + 1, [160, 32, 240]);
-        setPixel(col + 1, row + 1, [160, 32, 240]);
+        // finish line — checkered stripe across track width
+        for (const { col, row, color } of this.finishLineCells) {
+            setPixel(col, row, color);
+        }
     }
 
     getPointAt(t) {
