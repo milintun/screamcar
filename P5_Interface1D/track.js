@@ -27,7 +27,7 @@ class RandomBezier {
 
       // If there's a previous bezier, ensure C1 continuity
       // (last control point of prev, end of prev/start of current, first control point of current are collinear)
-      const noise = 1;
+      const noise = RECTANGULAR ? 0.7 : 1;
       if (prevBezier) {
         this.cpx1 = this.x1 + (this.x1 - prevBezier.cpx2);
         this.cpy1 = this.y1 + (this.y1 - prevBezier.cpy2);
@@ -96,12 +96,12 @@ class Track {
     }
 
 
-    getEllipsePath(sampleNum=500) {
+    samplePointsAroundEllipse(sampleNum=500) {
       const ellipsePath = []
       const cx = width / 2
       const cy = height / 2
-      const a = (width * 2 / 10)
-      const b = (height / 10)
+      const a = displayCols * pixelSize * 0.3  // scales with canvas width
+      const b = displayRows * pixelSize * 0.2  // scales with canvas height
       for (let i = 0; i < sampleNum; i++) {
         const t = (TWO_PI / sampleNum) * i
         const x = cx + a * cos(t)
@@ -132,7 +132,8 @@ class Track {
     }
 
     generateTrack() {
-        const samplePoints = this.samplePointsAroundCircle(250, 6);
+        const circleR = min(displayRows, displayCols) * pixelSize * 0.3;
+        const samplePoints = RECTANGULAR ? this.samplePointsAroundEllipse(6) : this.samplePointsAroundCircle(circleR, 6);
         for (const [index, [x, y]] of samplePoints.entries()) {
             const prevIndex = index === 0 ? samplePoints.length - 1 : index - 1;
             const [x1, y1] = samplePoints[prevIndex];
@@ -158,6 +159,7 @@ class Track {
     rasterizeTrack() {
         this.centerCells = new Set();
         this.radiusCells = new Set();
+        this.outerCells  = new Set();
         const SAMPLES = 8000;
         const RADIUS = 1; // cells of padding around the center line
 
@@ -173,6 +175,15 @@ class Track {
                     this.radiusCells.add(`${col + dc},${row + dr}`);
                 }
             }
+            // outer ring: one cell further out (max(|dr|,|dc|) == RADIUS+1)
+            const OR = RADIUS + 1;
+            for (let dr = -OR; dr <= OR; dr++) {
+                for (let dc = -OR; dc <= OR; dc++) {
+                    if (Math.max(Math.abs(dr), Math.abs(dc)) === OR) {
+                        this.outerCells.add(`${col + dc},${row + dr}`);
+                    }
+                }
+            }
         }
 
         // pre-compute finish line: collect cells, deduplicate, then color by grid position
@@ -182,7 +193,7 @@ class Track {
         const seen = new Set();
         const cells = [];
         for (let tStep = 0; tStep < 2; tStep++) {
-            for (let step = -RADIUS; step <= RADIUS; step++) {
+            for (let step = -RADIUS - 1; step <= RADIUS + 1; step++) {
                 const col = floor((lp.x + nx * step * pixelSize + lp.tx * tStep * pixelSize) / pixelSize);
                 const row = floor((lp.y + ny * step * pixelSize + lp.ty * tStep * pixelSize) / pixelSize);
                 const key = `${col},${row}`;
@@ -200,7 +211,15 @@ class Track {
     }
 
     writeToBuffer() {
-        // radius border (red) — drawn first so center overwrites overlaps
+        if (RED_WHITE_BORDER) {
+          // outer ring — red/white alternating by grid position
+          for (const key of this.outerCells) {
+              const [c, r] = key.split(',').map(Number);
+              setPixel(c, r, (c + r) % 2 === 0 ? [150, 26, 26] : [190, 190, 190]);
+          }
+        }
+        
+        // radius border — drawn next so it overwrites outer ring overlaps
         for (const key of this.radiusCells) {
             const [c, r] = key.split(',').map(Number);
             setPixel(c, r, [30, 30, 30]);
@@ -222,6 +241,17 @@ class Track {
         // finish line — checkered stripe across track width
         for (const { col, row, color } of this.finishLineCells) {
             setPixel(col, row, color);
+        }
+
+    }
+
+    debugDraw() {
+        const circleR = min(displayRows, displayCols) * pixelSize * 0.3;
+        const debugPoints = RECTANGULAR ? this.samplePointsAroundEllipse(6) : this.samplePointsAroundCircle(circleR, 6);
+        noStroke();
+        fill(255, 0, 0);
+        for (const [x, y] of debugPoints) {
+            circle(x, y, 50);
         }
     }
 

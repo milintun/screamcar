@@ -17,13 +17,24 @@ class Car {
         this.deadTx = 0;
         this.deadTy = 0;
         this.deadSpeed = 0;
+        // crash animation state
+        this.crashPhase  = 'sliding'; // 'sliding' | 'crashed'
+        this.crashTimer  = 0;
+        this.wreckage    = [];        // static pixels [{col,row,color}]
+        this.smoke       = [];        // smoke sources [{baseCol,baseRow,phase,height}]
     }
 
     update() {
-        // DEAD ANIMATION
         if (this.dead) {
-            this.deadX += this.deadTx * this.deadSpeed;
-            this.deadY += this.deadTy * this.deadSpeed;
+            this.crashTimer++;
+            if (this.crashPhase === 'sliding') {
+                this.deadX     += this.deadTx * this.deadSpeed;
+                this.deadY     += this.deadTy * this.deadSpeed;
+                if (this.crashTimer >= 50) {
+                    this.crashPhase = 'crashed';
+                    this._buildCrash();
+                }
+            }
             return;
         }
 
@@ -61,50 +72,23 @@ class Car {
             // SPEED
             if (loudness > 300) {
                 this.speed = map(loudness, 300, 1023, 0.00001, 0.005);
-            } 
+            }
             // ACCELERATION
             if (loudness > 300) {
                 this.speed += map(loudness, 300, 1023, 0.00001, 0.0002);
             } else {
                 if (this.speed > 0) {
                     this.speed -= 0.00003;
-                } 
+                }
             }
 
-            // if (loudness > 100) {
-            //     this.speed += map(loudness, 300, 1023, 0.00001, 0.0002);
-            // } else {
-            //     if (this.speed > 0) {
-            //         this.speed -= 0.00003;
-            //     }
-            // }
-
         } else if (this.inputMode === "ultrasonic") {
-            // SPEED (BRAKE)
-            // if (val > 30) {
-            //     this.speed = 0.005
-            // } else {
-            //     this.speed = map(val, 0, 30, 0, 0.003);
-            // }
-
             // SPEED (GO)
             if (val > 30) {
                 this.speed = 0.0005
             } else {
                 this.speed = map(val, 30, 0, 0, 0.005);
             }
-
-
-            //// ACCELERATION
-            // if (val > 30) {
-            //     // Far away = brake
-            //     this.speed -= 0.0001;
-            // } else {
-            //     // Close = accelerate (closer = faster)
-            //     this.speed += map(val, 30, 0, 0, 0.0001);
-            // }
-            // // Never go backwards
-            // if (this.speed < 0) this.speed = 0;
         }
 
         this.prevT = this.t;
@@ -125,9 +109,7 @@ class Car {
         }
 
         // banana (range check for now until discretized into pixels)
-        // console.log(this.inBananaZone())
         if (this.inBananaZone()) {
-            // console.log(this.speed)
             if (this.speed >= BANANA_KILL_SPEED) {
                 this.die(pos)
             }
@@ -145,14 +127,80 @@ class Car {
         this.deadTx = pos.tx * Math.sign(this.speed);
         this.deadTy = pos.ty * Math.sign(this.speed);
         this.deadSpeed = Math.abs(this.speed) * 700;
+        this.crashPhase = 'sliding';
+        this.crashTimer = 0;
         audience.excite();
+    }
+
+    _buildCrash() {
+        const col = floor(this.deadX / pixelSize);
+        const row = floor(this.deadY / pixelSize);
+
+        // scattered wreckage pixels: car color, black, gray, burnt orange
+        for (let dr = -2; dr <= 2; dr++) {
+            for (let dc = -2; dc <= 2; dc++) {
+                if (random() > 0.55) continue;
+                const roll = random();
+                let color;
+                if      (roll < 0.30) color = this.carColor;
+                else if (roll < 0.50) color = [15, 15, 15];          // black char
+                else if (roll < 0.75) color = [90, 90, 90];          // gray debris
+                else                  color = [160, 55, 0];           // burnt orange
+                this.wreckage.push({ col: col + dc, row: row + dr, color });
+            }
+        }
+
+        // smoke sources just above the wreckage
+        for (let i = 0; i < 4; i++) {
+            this.smoke.push({
+                baseCol: col + floor(random(-2, 3)),
+                baseRow: row - 1,
+                phase:   random(TWO_PI),
+                height:  floor(random(3, 6)),
+                speed:   random(0.025, 0.06),
+            });
+        }
     }
 
     writeToBuffer() {
         if (this.dead) {
             const col = floor(this.deadX / pixelSize);
             const row = floor(this.deadY / pixelSize);
-            setPixel(col, row, this.carColor);
+
+            if (this.crashPhase === 'sliding') {
+                setPixel(col, row, this.carColor);
+                return;
+            }
+
+            // explosion burst — shown for 20 frames after sliding ends (frame 50–70)
+            if (this.crashTimer >= 50 && this.crashTimer < 70) {
+                const burstR = min(floor((this.crashTimer - 50) / 4) + 1, 3);
+                for (let dr = -burstR; dr <= burstR; dr++) {
+                    for (let dc = -burstR; dc <= burstR; dc++) {
+                        if (dc*dc + dr*dr > burstR*burstR + 1) continue;
+                        const heat = random();
+                        const c = heat < 0.5
+                            ? [255, floor(random(80, 180)), 0]   // orange
+                            : [220, floor(random(20, 60)),  0];  // red
+                        setPixel(col + dc, row + dr, c);
+                    }
+                }
+            }
+
+            // static wreckage
+            for (const { col: wc, row: wr, color } of this.wreckage) {
+                setPixel(wc, wr, color);
+            }
+
+            // animated smoke rising above wreckage
+            for (const s of this.smoke) {
+                for (let h = 0; h < s.height; h++) {
+                    const drift = round(sin(frameCount * s.speed + s.phase + h * 0.8) * 0.9);
+                    const gray  = floor(lerp(160, 220, h / s.height));
+                    setPixel(s.baseCol + drift, s.baseRow - h, [gray, gray, gray]);
+                }
+            }
+
             return;
         }
 

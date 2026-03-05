@@ -9,11 +9,19 @@
 
 const CANVAS_SIZE = 800; // fixed physical canvas size in screen pixels
 let pixelSize = 10;      // how big each 'pixel' looks on screen (tune this)
-let displaySize = CANVAS_SIZE / pixelSize;  // grid resolution — computed, don't set manually
+
+const RECTANGULAR  = true; // true = double width, same height
+const RED_WHITE_BORDER = true; // outer alternating red/white ring on track
+
+let displayRows = CANVAS_SIZE / pixelSize;
+let displayCols = RECTANGULAR ? displayRows * 2 : displayRows;
+let displaySize = displayRows; // alias kept for any legacy references
 
 let track;
 let cars = [];
 let audience;
+let trees;
+let grass;
 
 let controller;   // This is where the state machine and game logic lives
 
@@ -40,25 +48,25 @@ let paused = false;
 let pixelBuffer = [];
 
 function initBuffer() {
-  pixelBuffer = Array.from({length: displaySize}, () => Array(displaySize).fill(null));
+  pixelBuffer = Array.from({length: displayRows}, () => Array(displayCols).fill(null));
 }
 
 function clearBuffer() {
-  for (let r = 0; r < displaySize; r++)
-    for (let c = 0; c < displaySize; c++)
+  for (let r = 0; r < displayRows; r++)
+    for (let c = 0; c < displayCols; c++)
       pixelBuffer[r][c] = null;
 }
 
 // col, row are grid coordinates; color is [r, g, b]
 function setPixel(col, row, color) {
-  if (col < 0 || col >= displaySize || row < 0 || row >= displaySize) return;
+  if (col < 0 || col >= displayCols || row < 0 || row >= displayRows) return;
   pixelBuffer[row][col] = color;
 }
 
 function renderBuffer() {
   noStroke();
-  for (let r = 0; r < displaySize; r++) {
-    for (let c = 0; c < displaySize; c++) {
+  for (let r = 0; r < displayRows; r++) {
+    for (let c = 0; c < displayCols; c++) {
       const color = pixelBuffer[r][c];
       if (color !== null) {
         fill(color[0], color[1], color[2]);
@@ -71,7 +79,7 @@ function renderBuffer() {
 
 function setup() {
 
-  createCanvas(CANVAS_SIZE, CANVAS_SIZE);
+  createCanvas(RECTANGULAR ? CANVAS_SIZE * 2 : CANVAS_SIZE, CANVAS_SIZE);
   noSmooth();
   initBuffer();
 
@@ -79,8 +87,10 @@ function setup() {
   track = new Track();
   cars = CAR_CONFIG.map(c => new Car(track, MAX_GRIP, c.id, c.mode, c.color));
   audience = new Audience();
+  trees = new Trees();
+  grass = new Grass();
 
-  bgColor = 'green';
+  bgColor = [94, 156, 54];
 
   // Start computer microphone if any car uses it
   if (CAR_CONFIG.some(c => c.mode === "microphone")) {
@@ -99,6 +109,8 @@ function setup() {
 function draw() {
   background(bgColor);
   clearBuffer();
+  grass.writeToBuffer();
+  trees.writeToBuffer();
   audience.update();
   audience.writeToBuffer();
   track.writeToBuffer();
@@ -108,6 +120,7 @@ function draw() {
     car.writeToBuffer();
   }
   renderBuffer();
+  // track.debugDraw();
 
   // Check for win (car completes a lap)
   if (!paused && resetTimer < 0) {
@@ -134,8 +147,10 @@ function draw() {
     track = new Track();
     cars = CAR_CONFIG.map(c => new Car(track, MAX_GRIP, c.id, c.mode, c.color));
     audience = new Audience();
+    trees = new Trees();
+    grass = new Grass();
     initBuffer();
-    bgColor = 'green';
+    bgColor = [94, 156, 54];
     paused = false;
     resetTimer = -1;
   }
