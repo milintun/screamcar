@@ -160,6 +160,8 @@ class Track {
         this.centerCells = new Set();
         this.radiusCells = new Set();
         this.outerCells  = new Set();
+        this.orderedCenterCells = []; // [{col, row}] in t-order, for countdown animation
+        this.orderedRadiusCells = []; // [{col, row}] in t-order, for countdown animation
         const SAMPLES = 8000;
         const RADIUS = 1; // cells of padding around the center line
 
@@ -168,11 +170,15 @@ class Track {
             const pos = this.getPointAt(t);
             const col = floor(pos.x / pixelSize);
             const row = floor(pos.y / pixelSize);
-            this.centerCells.add(`${col},${row}`);
+            const ck = `${col},${row}`;
+            if (!this.centerCells.has(ck)) this.orderedCenterCells.push({col, row});
+            this.centerCells.add(ck);
             for (let dr = -RADIUS; dr <= RADIUS; dr++) {
                 for (let dc = -RADIUS; dc <= RADIUS; dc++) {
                     if (dr === 0 && dc === 0) continue;
-                    this.radiusCells.add(`${col + dc},${row + dr}`);
+                    const rk = `${col + dc},${row + dr}`;
+                    if (!this.radiusCells.has(rk)) this.orderedRadiusCells.push({col: col + dc, row: row + dr});
+                    this.radiusCells.add(rk);
                 }
             }
             // outer ring: one cell further out (max(|dr|,|dc|) == RADIUS+1)
@@ -248,6 +254,41 @@ class Track {
             setPixel(col, row, color);
         }
 
+    }
+
+    writeCountdownBuffer(phase, blobT) {
+        const COLORS = [
+            { center: [200, 40,  40],  radius: [140, 20,  20]  }, // red
+            { center: [230, 200, 30],  radius: [170, 140, 20]  }, // yellow
+            { center: [40,  200, 40],  radius: [20,  140, 20]  }, // green
+        ];
+
+        const paintC = Math.floor(this.orderedCenterCells.length * blobT);
+        const paintR = Math.floor(this.orderedRadiusCells.length * blobT);
+
+        // draw unpainted portion in previous phase color (gives trail effect)
+        if (phase > 0) {
+            const prev = COLORS[phase - 1];
+            for (let i = paintR; i < this.orderedRadiusCells.length; i++) {
+                const {col, row} = this.orderedRadiusCells[i];
+                setPixel(col, row, prev.radius);
+            }
+            for (let i = paintC; i < this.orderedCenterCells.length; i++) {
+                const {col, row} = this.orderedCenterCells[i];
+                setPixel(col, row, prev.center);
+            }
+        }
+
+        // draw painted portion in current phase color
+        const cur = COLORS[phase];
+        for (let i = 0; i < paintR; i++) {
+            const {col, row} = this.orderedRadiusCells[i];
+            setPixel(col, row, cur.radius);
+        }
+        for (let i = 0; i < paintC; i++) {
+            const {col, row} = this.orderedCenterCells[i];
+            setPixel(col, row, cur.center);
+        }
     }
 
     debugDraw() {

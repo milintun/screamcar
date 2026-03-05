@@ -33,7 +33,7 @@ const MAX_GRIP = 20;
 // Input modes: "keyboard", "potentiometer", "button", "microphone", "ultrasonic"
 // Arduino sends: "id value\n" where id matches the car's id
 const CAR_CONFIG = [
-  { id: 1, mode: "keyboard", color: [0, 184, 46]  },   // green
+  { id: 1, mode: "keyboard", color: [255, 17, 0]  },   // red
   { id: 2, mode: "keyboard", color: [66, 135, 245] },  // blue
 
   // { id: 1, mode: "ultrasonic", color: [0, 184, 46]  },   // green
@@ -43,8 +43,12 @@ const CAR_CONFIG = [
 
 let bgColor;
 let resetTimer = -1;
-const RESET_DELAY = 90; // frames to pause before reset
+const RESET_DELAY = 90;            // frames to pause before reset
+const COUNTDOWN_PHASE_FRAMES = 60; // frames per countdown phase (3 phases: red → yellow → green)
+const COUNTDOWN_TOTAL = COUNTDOWN_PHASE_FRAMES * 3;
 let paused = false;
+let countdownActive = false;
+let countdownTimer = 0;
 
 let pixelBuffer = [];
 
@@ -92,6 +96,9 @@ function setup() {
   grass = new Grass();
 
   bgColor = [94, 156, 54];
+  paused = true;
+  countdownActive = true;
+  countdownTimer = 0;
 
   // Start computer microphone if any car uses it
   if (CAR_CONFIG.some(c => c.mode === "microphone")) {
@@ -108,17 +115,29 @@ function setup() {
 }
 
 function draw() {
-  background(bgColor);
-  clearBuffer();
-  grass.writeToBuffer();
-  trees.writeToBuffer();
-  audience.update();
-  audience.writeToBuffer();
-  track.writeToBuffer();
-
-  for (let car of cars) {
-    if (!paused) car.update();
-    car.writeToBuffer();
+  if (countdownActive) {
+    background('black')
+    const frameInPhase = countdownTimer % COUNTDOWN_PHASE_FRAMES;
+    const phase = Math.floor(countdownTimer / COUNTDOWN_PHASE_FRAMES);
+    const blobT = Math.min(1.0, frameInPhase / (COUNTDOWN_PHASE_FRAMES - 1));
+    track.writeCountdownBuffer(phase, blobT);
+    countdownTimer++;
+    if (countdownTimer >= COUNTDOWN_TOTAL) {
+      countdownActive = false;
+      paused = false;
+    }
+  } else {
+      background(bgColor);
+      clearBuffer();
+      grass.writeToBuffer();
+      trees.writeToBuffer();
+      audience.update();
+      audience.writeToBuffer();
+    track.writeToBuffer();
+    for (let car of cars) {
+      if (!paused) car.update();
+      car.writeToBuffer();
+    }
   }
   renderBuffer();
   // track.debugDraw();
@@ -152,7 +171,9 @@ function draw() {
     grass = new Grass();
     initBuffer();
     bgColor = [94, 156, 54];
-    paused = false;
+    paused = true;
     resetTimer = -1;
+    countdownActive = true;
+    countdownTimer = 0;
   }
 }
