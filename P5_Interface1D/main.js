@@ -7,11 +7,13 @@
 */ /////////////////////////////////////
 
 
-let displaySize = 40;   // how many pixels are visible in the game
-let pixelSize = 20;     // how big each 'pixel' looks on screen
+const CANVAS_SIZE = 800; // fixed physical canvas size in screen pixels
+let pixelSize = 10;      // how big each 'pixel' looks on screen (tune this)
+let displaySize = CANVAS_SIZE / pixelSize;  // grid resolution — computed, don't set manually
 
 let track;
 let cars = [];
+let audience;
 
 let controller;   // This is where the state machine and game logic lives
 
@@ -22,8 +24,8 @@ const MAX_GRIP = 20;
 // Input modes: "keyboard", "potentiometer", "button", "microphone", "ultrasonic"
 // Arduino sends: "id value\n" where id matches the car's id
 const CAR_CONFIG = [
-  { id: 1, mode: "potentiometer", color: [0, 184, 46]  },   // green
-  { id: 2, mode: "potentiometer", color: [66, 135, 245] },  // blue
+  { id: 1, mode: "keyboard", color: [0, 184, 46]  },   // green
+  { id: 2, mode: "keyboard", color: [66, 135, 245] },  // blue
 
   // { id: 1, mode: "ultrasonic", color: [0, 184, 46]  },   // green
   // { id: 2, mode: "microphone", color: [66, 135, 245] },  // blue
@@ -35,17 +37,50 @@ let resetTimer = -1;
 const RESET_DELAY = 90; // frames to pause before reset
 let paused = false;
 
+let pixelBuffer = [];
+
+function initBuffer() {
+  pixelBuffer = Array.from({length: displaySize}, () => Array(displaySize).fill(null));
+}
+
+function clearBuffer() {
+  for (let r = 0; r < displaySize; r++)
+    for (let c = 0; c < displaySize; c++)
+      pixelBuffer[r][c] = null;
+}
+
+// col, row are grid coordinates; color is [r, g, b]
+function setPixel(col, row, color) {
+  if (col < 0 || col >= displaySize || row < 0 || row >= displaySize) return;
+  pixelBuffer[row][col] = color;
+}
+
+function renderBuffer() {
+  noStroke();
+  for (let r = 0; r < displaySize; r++) {
+    for (let c = 0; c < displaySize; c++) {
+      const color = pixelBuffer[r][c];
+      if (color !== null) {
+        fill(color[0], color[1], color[2]);
+        rect(c * pixelSize, r * pixelSize, pixelSize, pixelSize);
+      }
+    }
+  }
+}
+
 
 function setup() {
 
-  createCanvas((displaySize*pixelSize), (displaySize*pixelSize));     // dynamically sets canvas size
+  createCanvas(CANVAS_SIZE, CANVAS_SIZE);
+  noSmooth();
+  initBuffer();
 
   // randomize new track once
   track = new Track();
   cars = CAR_CONFIG.map(c => new Car(track, MAX_GRIP, c.id, c.mode, c.color));
-  track.show();
+  audience = new Audience();
 
-  bgColor = 'white';
+  bgColor = 'green';
 
   // Start computer microphone if any car uses it
   if (CAR_CONFIG.some(c => c.mode === "microphone")) {
@@ -56,19 +91,23 @@ function setup() {
   if (CAR_CONFIG.some(c => c.mode !== "keyboard" && c.mode !== "microphone")) {
     serial.autoConnect();
     let btn = createButton('Connect Arduino');
-    btn.position(10, displaySize * pixelSize + 10);
+    btn.position(10, CANVAS_SIZE + 10);
     btn.mousePressed(() => serial.connect());
   }
 }
 
 function draw() {
   background(bgColor);
-  track.show();
+  clearBuffer();
+  audience.update();
+  audience.writeToBuffer();
+  track.writeToBuffer();
 
   for (let car of cars) {
     if (!paused) car.update();
-    car.show();
+    car.writeToBuffer();
   }
+  renderBuffer();
 
   // Check for win (car completes a lap)
   if (!paused && resetTimer < 0) {
@@ -77,6 +116,7 @@ function draw() {
       bgColor = `rgb(${winner.carColor[0]}, ${winner.carColor[1]}, ${winner.carColor[2]})`;
       paused = true;
       resetTimer = RESET_DELAY;
+      audience.excite();
     }
   }
 
@@ -84,6 +124,7 @@ function draw() {
   if (!paused && cars.every(car => car.dead) && resetTimer < 0) {
     bgColor = 'red';
     resetTimer = RESET_DELAY;
+    audience.excite();
   }
 
   // Reset countdown
@@ -92,7 +133,9 @@ function draw() {
   } else if (resetTimer === 0) {
     track = new Track();
     cars = CAR_CONFIG.map(c => new Car(track, MAX_GRIP, c.id, c.mode, c.color));
-    bgColor = 'white';
+    audience = new Audience();
+    initBuffer();
+    bgColor = 'green';
     paused = false;
     resetTimer = -1;
   }

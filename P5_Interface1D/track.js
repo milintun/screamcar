@@ -149,25 +149,61 @@ class Track {
             firstBezier.cpy1 = firstBezier.y1 + (firstBezier.y1 - lastBezier.cpy2);
             firstBezier.polyRep = firstBezier.getPolyRep();
         }
+
+        this.rasterizeTrack();
     }
 
+    // Pre-compute which grid cells the track occupies.
+    // Called once after generateTrack(); result is reused every frame.
+    rasterizeTrack() {
+        this.centerCells = new Set();
+        this.radiusCells = new Set();
+        const SAMPLES = 8000;
+        const RADIUS = 1; // cells of padding around the center line
 
-    show() {
-      // draw each bezier 
-      this.beziers.forEach(bezier => bezier.show());
+        for (let i = 0; i <= SAMPLES; i++) {
+            const t = i / SAMPLES;
+            const pos = this.getPointAt(t);
+            const col = floor(pos.x / pixelSize);
+            const row = floor(pos.y / pixelSize);
+            this.centerCells.add(`${col},${row}`);
+            for (let dr = -RADIUS; dr <= RADIUS; dr++) {
+                for (let dc = -RADIUS; dc <= RADIUS; dc++) {
+                    if (dr === 0 && dc === 0) continue;
+                    this.radiusCells.add(`${col + dc},${row + dr}`);
+                }
+            }
+        }
+    }
 
-      // draw each banana
-      for (const banana of this.bananas) {
-        const pos = this.getPointAt(banana.t);
-        noStroke();
-        fill('#F7E29C');
-        circle(pos.x, pos.y, 10);
-      }
+    writeToBuffer() {
+        // radius border (red) — drawn first so center overwrites overlaps
+        for (const key of this.radiusCells) {
+            const [c, r] = key.split(',').map(Number);
+            setPixel(c, r, [30, 30, 30]);
+        }
+        // center track line (dark)
+        for (const key of this.centerCells) {
+            const [c, r] = key.split(',').map(Number);
+            setPixel(c, r, [70, 70, 70]);
+        }
 
-      // draw finish line
-      const linePos = this.getPointAt(0);
-      fill('purple');
-      circle(linePos.x, linePos.y, 30);
+        // bananas
+        for (const banana of this.bananas) {
+            const pos = this.getPointAt(banana.t);
+            const col = floor(pos.x / pixelSize);
+            const row = floor(pos.y / pixelSize);
+            setPixel(col, row, [247, 226, 156]);
+        }
+
+        // finish line (2x2 block so it's visible)
+        const linePos = this.getPointAt(0);
+        const col = floor(linePos.x / pixelSize);
+        const row = floor(linePos.y / pixelSize);
+        setPixel(col,     row,     [160, 32, 240]);
+        setPixel(col + 1, row,     [160, 32, 240]);
+        setPixel(col,     row + 1, [160, 32, 240]);
+        setPixel(col + 1, row + 1, [160, 32, 240]);
     }
 
     getPointAt(t) {

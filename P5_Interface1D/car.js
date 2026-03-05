@@ -43,7 +43,7 @@ class Car {
             }
 
         } else if (this.inputMode === "potentiometer") {
-            this.speed = map(val, 0, 700, 0, 0.003);
+            this.speed = map(val, 0, 500, 0.0001, 0.003);
 
         } else if (this.inputMode === "button") {
             if (val === 1) {
@@ -145,33 +145,37 @@ class Car {
         this.deadTx = pos.tx * Math.sign(this.speed);
         this.deadTy = pos.ty * Math.sign(this.speed);
         this.deadSpeed = Math.abs(this.speed) * 700;
+        audience.excite();
     }
 
-    show() {
-        fill(this.carColor[0], this.carColor[1], this.carColor[2]);
+    writeToBuffer() {
         if (this.dead) {
-            circle(this.deadX, this.deadY, 20);
-        } else {
-        const pos = this.track.getPointAt(this.t);
-        circle(pos.x, pos.y, 20);
-        // trail length: 50% shorter than before (cap at 5 instead of 10)
-        let trailLen = floor(map(this.speed, 0, 0.002, 0, 5));
+            const col = floor(this.deadX / pixelSize);
+            const row = floor(this.deadY / pixelSize);
+            setPixel(col, row, this.carColor);
+            return;
+        }
 
-        // Draw trail by stepping backwards along the track indices
-        // so every pixel is exactly on-track.
-        // TODO: work backwards?
-        noStroke();
+        const pos = this.track.getPointAt(this.t);
+        const col = floor(pos.x / pixelSize);
+        const row = floor(pos.y / pixelSize);
+
+        // trail (drawn first so car pixel is on top)
+        const trailLen = floor(map(this.speed, 0, 0.002, 0, 5));
         for (let i = trailLen; i >= 1; i--) {
-            const cloneT = this.t - i * 0.003;
-            let remappedCloneT = cloneT;
-            if (cloneT < 0) {
-                remappedCloneT = 1 - cloneT;
-            }
-            const clonePos = this.track.getPointAt(remappedCloneT);
-            const alpha = map(i, 0, trailLen, 100, 40);
-            fill(this.carColor[0], this.carColor[1], this.carColor[2], alpha);
-            circle(clonePos.x, clonePos.y, 20);
+            const cloneT = ((this.t - i * 0.003) % 1 + 1) % 1;
+            const clonePos = this.track.getPointAt(cloneT);
+            const tc = floor(clonePos.x / pixelSize);
+            const tr = floor(clonePos.y / pixelSize);
+            const factor = map(i, 1, trailLen, 0.75, 0.2);
+            setPixel(tc, tr, [
+                this.carColor[0] * factor,
+                this.carColor[1] * factor,
+                this.carColor[2] * factor,
+            ]);
         }
-        }
+
+        // car pixel on top
+        setPixel(col, row, this.carColor);
     }
 }
