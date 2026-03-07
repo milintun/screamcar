@@ -2,6 +2,7 @@ class Audience {
     constructor() {
         this.members = [];
         this.excitement = 0;
+        this.flagColor = null;
         this._generate();
     }
 
@@ -31,7 +32,7 @@ class Audience {
                     this.members.push({
                         col,
                         baseRow: r,
-                        phase: random(TWO_PI),
+                        t: random(TWO_PI), // accumulated phase, avoids frameCount * speed drift
                         headColor: this._skinTone(random(1)),
                         bodyColor: this._hsv(random(360), 0.6, 0.65),
                     });
@@ -65,21 +66,25 @@ class Audience {
         return [round((r+m)*255), round((g+m)*255), round((b+m)*255)];
     }
 
-    excite() {
-        this.excitement = 0.4;
+    excite(color = null) {
+        this.excitement = 1;
+        this.flagColor = color;
     }
 
     update() {
-        this.excitement = max(0, this.excitement - 0.008);
+        this.excitement = max(0, this.excitement - 0.005);
+        if (this.excitement === 0) this.flagColor = null;
+        const speed = lerp(0.01, 0.1, this.excitement);
+        for (const m of this.members) m.t += speed;
     }
 
     writeToBuffer() {
-        const speed     = lerp(0.01, 0.18, this.excitement);
-        const amplitude = lerp(0.6,  3.5,  this.excitement);
+        const amplitude = 1;
 
         for (const m of this.members) {
-            const offset = round(sin(frameCount * speed + m.phase) * amplitude);
+            const offset = round(sin(m.t) * amplitude);
             const headRow = m.baseRow + offset;
+            if (this.flagColor) setPixel(m.col, headRow - 1, this.flagColor);
             setPixel(m.col, headRow,     m.headColor);
             setPixel(m.col, headRow + 1, m.bodyColor);
         }

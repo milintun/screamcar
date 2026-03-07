@@ -10,7 +10,7 @@
 const CANVAS_SIZE = 800; // fixed physical canvas size in screen pixels
 let pixelSize = 10;      // how big each 'pixel' looks on screen (tune this)
 
-const RECTANGULAR      = true;      // true = double width, same height
+const RECTANGULAR      = false;      // true = double width, same height
 const RED_WHITE_BORDER = true;      // outer alternating red/white ring on track
 const GRASS_STYLE      = 'specks';  // 'specks' | 'stripes'
 
@@ -30,22 +30,20 @@ const MAX_GRIP = 20;
 
 // ========== CAR CONFIG ==========
 // Add/remove entries to change number of cars
-// Input modes: "keyboard", "potentiometer", "button", "microphone", "ultrasonic"
+// Input modes: "keyboard", "potentiometer"
 // Arduino sends: "id value\n" where id matches the car's id
 const CAR_CONFIG = [
-  { id: 1, mode: "keyboard", color: [255, 17, 0]  },   // red
-  { id: 2, mode: "keyboard", color: [66, 135, 245] },  // blue
-
-  // { id: 1, mode: "ultrasonic", color: [0, 184, 46]  },   // green
-  // { id: 2, mode: "microphone", color: [66, 135, 245] },  // blue
+  { id: 1, mode: "potentiometer", color: [255, 17, 0]  },   // red
+  { id: 2, mode: "potentiometer", color: [66, 135, 245] },  // blue
 ];
 // ================================
 
 let bgColor;
 let resetTimer = -1;
-const RESET_DELAY = 90;            // frames to pause before reset
+const RESET_DELAY = 150;            // frames to pause before reset
 const COUNTDOWN_PHASE_FRAMES = 60; // frames per countdown phase (3 phases: red → yellow → green)
 const COUNTDOWN_TOTAL = COUNTDOWN_PHASE_FRAMES * 3;
+const COUNTDOWN_PHASE_MS = Math.round(COUNTDOWN_PHASE_FRAMES * 1000 / 60); // ms per phase at 60fps
 let paused = false;
 let countdownActive = false;
 let countdownTimer = 0;
@@ -90,7 +88,7 @@ function setup() {
 
   // randomize new track once
   track = new Track();
-  cars = CAR_CONFIG.map(c => new Car(track, MAX_GRIP, c.id, c.mode, c.color));
+  cars = CAR_CONFIG.map(c => new Car(track, MAX_GRIP, c.id, c.mode, c.color, c.accelMode ?? false));
   audience = new Audience();
   trees = new Trees();
   grass = new Grass();
@@ -111,17 +109,30 @@ function setup() {
     let btn = createButton('Connect Arduino');
     btn.position(10, CANVAS_SIZE + 10);
     btn.mousePressed(() => serial.connect());
+
+    // home motors
+    serial.send('H')
   }
 }
 
 function draw() {
   if (countdownActive) {
-    background('black')
+    background('black');
     const frameInPhase = countdownTimer % COUNTDOWN_PHASE_FRAMES;
     const phase = Math.floor(countdownTimer / COUNTDOWN_PHASE_FRAMES);
     const blobT = Math.min(1.0, frameInPhase / (COUNTDOWN_PHASE_FRAMES - 1));
     track.writeCountdownBuffer(phase, blobT);
+
+    // send rumble once at the start of each phase
+    if (frameInPhase === 0) {
+      const durations = [100, 200, COUNTDOWN_PHASE_MS]
+      const freqs = [20, 20, 40];
+      
+      serial.send(`R ${durations[phase]} ${freqs[phase]}`);
+    }
+
     countdownTimer++;
+    
     if (countdownTimer >= COUNTDOWN_TOTAL) {
       countdownActive = false;
       paused = false;
@@ -146,16 +157,16 @@ function draw() {
   if (!paused && resetTimer < 0) {
     let winner = cars.find(car => car.lapped);
     if (winner) {
-      bgColor = `rgb(${winner.carColor[0]}, ${winner.carColor[1]}, ${winner.carColor[2]})`;
       paused = true;
       resetTimer = RESET_DELAY;
-      audience.excite();
+      audience.excite(winner.carColor);
+      // rumble motor celebration
+      serial.send(`${winner.id}R 100 10`);
     }
   }
 
   // Check for all dead
   if (!paused && cars.every(car => car.dead) && resetTimer < 0) {
-    bgColor = 'red';
     resetTimer = RESET_DELAY;
     audience.excite();
   }
@@ -165,7 +176,7 @@ function draw() {
     resetTimer--;
   } else if (resetTimer === 0) {
     track = new Track();
-    cars = CAR_CONFIG.map(c => new Car(track, MAX_GRIP, c.id, c.mode, c.color));
+    cars = CAR_CONFIG.map(c => new Car(track, MAX_GRIP, c.id, c.mode, c.color, c.accelMode ?? false));
     audience = new Audience();
     trees = new Trees();
     grass = new Grass();

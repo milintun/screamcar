@@ -39,6 +39,18 @@ let serial = {
     }
   },
 
+  async send(message) {
+    console.log(`[serial.send] → "${message}"`);
+    if (!this.connected || !this.port || !this.port.writable) {
+      console.warn(`[serial.send] not connected, dropped: "${message}"`);
+      return;
+    }
+    const writer = this.port.writable.getWriter();
+    const encoder = new TextEncoder();
+    await writer.write(encoder.encode(`${message}\n`));
+    writer.releaseLock();
+  },
+
   async _readLoop() {
     const decoder = new TextDecoderStream();
     this.port.readable.pipeTo(decoder.writable);

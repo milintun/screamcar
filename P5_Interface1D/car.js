@@ -1,12 +1,13 @@
 
 class Car {
 
-    constructor(track, maxGrip, id, inputMode, carColor) {
+    constructor(track, maxGrip, id, inputMode, carColor, accelMode = false) {
         this.track = track;
         this.maxGrip = maxGrip;
         this.id = id;               // 1 or 2 — matches serial prefix
         this.inputMode = inputMode;  // "keyboard", "potentiometer", "button", "microphone"
         this.carColor = carColor;    // [r, g, b]
+        this.accelMode = accelMode;  // if true, potentiometer controls accel/decel instead of direct speed
         this.t = 0.01;
         this.prevT = 0.01;
         this.speed = 0;
@@ -32,6 +33,8 @@ class Car {
                 this.deadY     += this.deadTy * this.deadSpeed;
                 if (this.crashTimer >= 50) {
                     this.crashPhase = 'crashed';
+                    // rumble motor on crash
+                    serial.send(`${this.id}R 500 10`);
                     this._buildCrash();
                 }
             }
@@ -54,41 +57,21 @@ class Car {
             }
 
         } else if (this.inputMode === "potentiometer") {
-            this.speed = map(val, 0, 500, 0.0001, 0.003);
-
-        } else if (this.inputMode === "button") {
-            if (val === 1) {
-                this.speed += 0.0001;
+            if (this.accelMode) {
+                // pot controls acceleration: low = brake, high = accelerate
+                const accel = map(val, -10000, 10000, -0.0001, 0.002);
+                this.speed = constrain(this.speed + accel, 0, 0.003);
             } else {
-                if (this.speed > 0) {
-                    this.speed -= 0.00001;
+                // pot directly sets speed
+                if (val < 0) {
+                    this.speed = 0;
+                } else if (val > 8000) {
+                    this.speed = 0.004;
+                } else {
+                    this.speed = map(val, 0, 8000, 0.0001, 0.004);
                 }
             }
 
-        } else if (this.inputMode === "microphone") {
-            let loudness = mic.level; // 0-1023 from computer mic
-            console.log(loudness)
-
-            // SPEED
-            if (loudness > 300) {
-                this.speed = map(loudness, 300, 1023, 0.00001, 0.005);
-            }
-            // ACCELERATION
-            if (loudness > 300) {
-                this.speed += map(loudness, 300, 1023, 0.00001, 0.0002);
-            } else {
-                if (this.speed > 0) {
-                    this.speed -= 0.00003;
-                }
-            }
-
-        } else if (this.inputMode === "ultrasonic") {
-            // SPEED (GO)
-            if (val > 30) {
-                this.speed = 0.0005
-            } else {
-                this.speed = map(val, 30, 0, 0, 0.005);
-            }
         }
 
         this.prevT = this.t;
@@ -129,6 +112,11 @@ class Car {
         this.deadSpeed = Math.abs(this.speed) * 700;
         this.crashPhase = 'sliding';
         this.crashTimer = 0;
+
+        // rumble motor on instant death
+        serial.send(`${this.id}R 100 20`);
+
+        // excite audience
         audience.excite();
     }
 
