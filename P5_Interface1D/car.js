@@ -23,6 +23,7 @@ class Car {
         this.crashTimer  = 0;
         this.wreckage    = [];        // static pixels [{col,row,color}]
         this.smoke       = [];        // smoke sources [{baseCol,baseRow,phase,height}]
+        this.prevButtonKey = false;   // for keyboard edge detection
     }
 
     update() {
@@ -34,7 +35,7 @@ class Car {
                 if (this.crashTimer >= 50) {
                     this.crashPhase = 'crashed';
                     // rumble motor on crash
-                    serial.send(`${this.id}R 500 10`);
+                    if (serial.connected) serial.send(`${this.id}R 500 10`);
                     this._buildCrash();
                 }
             }
@@ -46,9 +47,13 @@ class Car {
 
         if (this.inputMode === "keyboard") {
             // Car 1: W/S keys, Car 2: Up/Down arrows
-            let accelKey = this.id === 1 ? keyIsDown(87) : keyIsDown(UP_ARROW);
-            let brakeKey = this.id === 1 ? keyIsDown(83) : keyIsDown(DOWN_ARROW);
-            if (accelKey) {
+            let accelKey = this.id === 3 ? keyIsDown(87) : keyIsDown(UP_ARROW);
+            let brakeKey = this.id === 3 ? keyIsDown(83) : keyIsDown(DOWN_ARROW);
+            let buttonKey = this.id === 3 ? keyIsDown(81) : keyIsDown(191); // Q / slash
+        if (buttonKey && !this.prevButtonKey) serial.buttons[this.id] = true;
+        this.prevButtonKey = buttonKey;
+
+        if (accelKey) {
                 this.speed += 0.00005;
             } else if (brakeKey) {
                 if (this.speed > 0) {
@@ -114,9 +119,34 @@ class Car {
         this.crashTimer = 0;
 
         // rumble motor on instant death
-        serial.send(`${this.id}R 100 20`);
+        if (serial.connected) serial.send(`${this.id}R 100 20`);
 
         // excite audience
+        audience.excite();
+    }
+
+    diePushed(pos) {
+        // Two candidate normals perpendicular to the tangent
+        const nx1 = -pos.ty, ny1 =  pos.tx;
+        const nx2 =  pos.ty, ny2 = -pos.tx;
+
+        // Pick the one pointing away from the canvas center (outward)
+        const cx = width / 2, cy = height / 2;
+        const toX = pos.x - cx, toY = pos.y - cy;
+        const dot = nx1 * toX + ny1 * toY;
+        const nx = dot >= 0 ? nx1 : nx2;
+        const ny = dot >= 0 ? ny1 : ny2;
+
+        this.dead = true;
+        this.deadX = pos.x;
+        this.deadY = pos.y;
+        this.deadTx = nx;
+        this.deadTy = ny;
+        this.deadSpeed = Math.max(Math.abs(this.speed), 0.001) * 700;
+        this.crashPhase = 'sliding';
+        this.crashTimer = 0;
+
+        if (serial.connected) serial.send(`${this.id}R 100 20`);
         audience.excite();
     }
 

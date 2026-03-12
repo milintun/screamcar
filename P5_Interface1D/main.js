@@ -10,7 +10,7 @@
 const CANVAS_SIZE = 800; // fixed physical canvas size in screen pixels
 let pixelSize = 10;      // how big each 'pixel' looks on screen (tune this)
 
-const RECTANGULAR      = false;      // true = double width, same height
+const RECTANGULAR      = true;      // true = double width, same height
 const RED_WHITE_BORDER = true;      // outer alternating red/white ring on track
 const GRASS_STYLE      = 'specks';  // 'specks' | 'stripes'
 
@@ -28,13 +28,22 @@ let controller;   // This is where the state machine and game logic lives
 
 const MAX_GRIP = 20;
 
+// ========== PUSH / BUTTON CONFIG ==========
+// How close (in track t units, 0–1) a car must be to its target
+// for the button push to work. 0.05 ≈ 5% of the track length.
+const PUSH_RANGE = 0.02;
+// ==========================================
+
 // ========== CAR CONFIG ==========
 // Add/remove entries to change number of cars
 // Input modes: "keyboard", "potentiometer"
 // Arduino sends: "id value\n" where id matches the car's id
 const CAR_CONFIG = [
-  { id: 1, mode: "potentiometer", color: [255, 17, 0]  },   // red
-  { id: 2, mode: "potentiometer", color: [66, 135, 245] },  // blue
+  // { id: 1, mode: "potentiometer", color: [255, 17, 0]  },   // red
+  // { id: 2, mode: "potentiometer", color: [66, 135, 245] },  // blue
+  { id: 3, mode: "keyboard", color: [255, 140, 0] },  // orange
+  { id: 4, mode: "keyboard", color: [1144, 0, 255] },  // purple
+
 ];
 // ================================
 
@@ -47,6 +56,7 @@ const COUNTDOWN_PHASE_MS = Math.round(COUNTDOWN_PHASE_FRAMES * 1000 / 60); // ms
 let paused = false;
 let countdownActive = false;
 let countdownTimer = 0;
+let roundTimer = 0;  // frames elapsed since round started
 
 let pixelBuffer = [];
 
@@ -111,7 +121,7 @@ function setup() {
     btn.mousePressed(() => serial.connect());
 
     // home motors
-    serial.send('H')
+    if (serial.connected) serial.send('H')
   }
 }
 
@@ -128,7 +138,7 @@ function draw() {
       const durations = [100, 200, COUNTDOWN_PHASE_MS]
       const freqs = [20, 20, 40];
       
-      serial.send(`R ${durations[phase]} ${freqs[phase]}`);
+      if (serial.connected) serial.send(`R ${durations[phase]} ${freqs[phase]}`);
     }
 
     countdownTimer++;
@@ -138,6 +148,7 @@ function draw() {
       paused = false;
     }
   } else {
+      if (!paused) roundTimer++;
       background(bgColor);
       clearBuffer();
       grass.writeToBuffer();
@@ -148,6 +159,36 @@ function draw() {
     for (let car of cars) {
       if (!paused) car.update();
       car.writeToBuffer();
+    }
+
+    // Button push: enabled only after 2 seconds, kill a nearby target, or die yourself if no one is in range
+    if (!paused && roundTimer >= 120) {
+      for (let pusher of cars) {
+        if (!serial.buttons[pusher.id]) continue;
+        serial.buttons[pusher.id] = false; // consume the press
+        if (pusher.dead) continue;
+
+        let hitAny = false;
+        for (let target of cars) {
+          if (target === pusher || target.dead) continue;
+          let diff = Math.abs(pusher.t - target.t);
+          let dist = Math.min(diff, 1 - diff);
+          if (dist <= PUSH_RANGE) {
+            const pos = target.track.getPointAt(target.t);
+            target.diePushed(pos);
+            hitAny = true;
+            console.log('PUSHED')
+          }
+        }
+
+        console.log(hitAny)
+        // No target in range — pusher falls off the track
+        if (!hitAny) {
+          console.log('NO TARGET')
+          const pos = pusher.track.getPointAt(pusher.t);
+          pusher.diePushed(pos);
+        }
+      }
     }
   }
   renderBuffer();
@@ -161,7 +202,7 @@ function draw() {
       resetTimer = RESET_DELAY;
       audience.excite(winner.carColor);
       // rumble motor celebration
-      serial.send(`${winner.id}R 100 10`);
+      if (serial.connected) serial.send(`${winner.id}R 100 10`);
     }
   }
 
@@ -186,5 +227,6 @@ function draw() {
     resetTimer = -1;
     countdownActive = true;
     countdownTimer = 0;
+    roundTimer = 0;
   }
 }

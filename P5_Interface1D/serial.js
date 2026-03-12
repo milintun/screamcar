@@ -6,6 +6,8 @@ let serial = {
   reader: null,
   connected: false,
   values: {},        // keyed by car id, e.g. { 1: 512, 2: 300 }
+  buttons: {},       // keyed by car id, true on press edge; consumed after read
+  buttonStates: {},  // keyed by car id, tracks raw hardware state for edge detection
   buffer: "",        // partial line buffer
 
   // Try to reconnect to a previously granted port (no popup needed)
@@ -69,14 +71,21 @@ let serial = {
           for (let line of lines) {
             line = line.trim();
             if (line.length === 0) continue;
-            // Expected format: "id value" e.g. "1 512" or "2 300"
+            // Expected format: "id pos buttonState" e.g. "1 512 1" or "2 300 0"
+            // buttonState 0 = pressed
             let parts = line.split(" ");
-            if (parts.length === 2) {
+            if (parts.length === 3) {
               let id = parseInt(parts[0]);
               let val = parseInt(parts[1]);
+              let btnState = parseInt(parts[2]);
               if (!isNaN(id) && !isNaN(val)) {
                 this.values[id] = val;
               }
+              // Falling edge: only trigger on transition from non-zero → 0
+              if (!isNaN(id) && btnState === 0 && this.buttonStates[id] !== 0) {
+                this.buttons[id] = true;
+              }
+              if (!isNaN(id)) this.buttonStates[id] = btnState;
             }
           }
         }
